@@ -1,9 +1,8 @@
-// Copyright Antti "lokori" Virtanen 2012.
-
 var canvas = null;
 var context = null;
 var canvasData = null;
-var index = null;
+var kakka = null;
+var lampoIdx = 0;
 var averageVal = null;
 var lampotilaRange = null;
 var lampotilat = null;
@@ -11,6 +10,23 @@ var lampotilat = null;
 window.onload = init;
 
 function init()
+{
+    initLampotilaRange();
+
+	canvas = document.getElementById('canvas');
+    context = canvas.getContext('2d');
+    canvasData = context.getImageData(0, 0, canvas.width, canvas.height);
+    lampotilat = new Array(canvasData.width*canvasData.height);
+    
+    clear(canvasData, 0, 0, 0, 255);
+    
+    draw();
+    setInterval(draw, SECONDSBETWEENFRAMES * 1000);
+    renderInProgress = false;
+    
+}
+
+function initLampotilaRange()
 {
     lampotilaRange = new Array(256);
 
@@ -32,19 +48,15 @@ function init()
     	};
     	lampotilaRange[i] = triplet; 
     }
+}
 
-	canvas = document.getElementById('canvas');
-    context = canvas.getContext('2d');
-    canvasData = context.getImageData(0, 0, canvas.width, canvas.height);
-    
-    lampotilat = new Array(canvasData.width*canvasData.height);
-    
-    clear(canvasData, 0, 0, 0, 255);
-    
-    draw();
-    setInterval(draw, SECONDSBETWEENFRAMES * 1000);
-    renderInProgress = false;
-    
+function drawRange()
+{
+    for (var i = 0; i < 256; i++) {
+    	var t = lampotilaRange[i];
+    	context.fillStyle = "rgb(" + t.r + "," + t.g + "," + t.b + ")"
+    	context.fillRect(i, 0, 1, 10);
+    }	
 }
 
 // target frames per second
@@ -72,71 +84,51 @@ function draw()
     
 }
 
-function drawRange()
-{
-    for (var i = 0; i < 256; i++) {
-    	var t = lampotilaRange[i];
-    	context.fillStyle = "rgb(" + t.r + "," + t.g + "," + t.b + ")"
-    	context.fillRect(i, 0, 1, 10);
-    }
-	
-}
-
-function lampotila(x, y) {
-	
-	averageVal = 
-		(getData(x, y, 0) +
-	    getData(x-1, y+1, 0) +
-	    getData(x, y+1, 0) +
-	    getData(x+1, y+1, 0)) >> 2;
-	
+function laskelampo(idx) {
+	var averageVal =  
+	  (lampotilat[idx] + 
+	   getLampo(idx+canvasData.width-1) +
+	   getLampo(idx+canvasData.width) + 
+	   getLampo(idx+canvasData.width+1) ) >> 2; 
+	   
 	return averageVal;
 }
 
-function getData(x, y, defaultIfNotExists) {
-	var index = (canvasData.width*y + x) << 2; // TODO: ei vain R vaan erillinen taulukko
-	if ( x < 0 || x >= canvasData.width || index > canvasData.data.length ) {
-		return defaultIfNotExists
+function getLampo(i) {
+	if ( i >= lampotilat.length )  {
+		return 0;
 	}
-	return canvasData.data[index]
+	return lampotilat[i];
 }
 
 function pikseloi() {
-	index = 0
+	kakka = 0;
+	lampoIdx = 0;
 	
-    for (var y=0; y < canvasData.height-1; y++) {
-    	for (var x=0; x < canvasData.width; x++) {    		
-    		var l = lampotila(x, y);
-    		putpixelFast(l,0,0); // TODO: G and B
-    		++index
-    	}
-    }
+	do {
+	    var l = laskelampo(lampoIdx);
+   	    lampotilat[lampoIdx] = l;
+    	var lampo = lampotilaRange[l];
+  	    putpixelFast(lampo.r, lampo.g, lampo.b);
+  	    ++lampoIdx;
+    } while (lampoIdx < lampotilat.length-1);
     
     for (var x=0; x < canvasData.width; x++) {
 
     	var i = Math.floor(Math.random() * 255);
+    	lampotilat[(canvasData.height-1)*canvasData.width + x] = i;
+
     	var lampo = lampotilaRange[i];
-    	
-    	lampotilat[(y+x)*4] = i;
-    	
 		putpixelFast(lampo.r, lampo.g, lampo.b);
     }
 
 }
 
 function putpixelFast(r,g,b) {
-    canvasData.data[index] = r;
-    canvasData.data[++index] = g;
-    canvasData.data[++index] = b;
-    ++index;
-}
-
-
-function putpixel(x,y,r,g,b) {
-	index = (canvasData.width*y + x) << 2
-    canvasData.data[index] = r;
-    canvasData.data[++index] = g;
-    canvasData.data[++index] = b;
+    canvasData.data[kakka] = r;
+    canvasData.data[++kakka] = g;
+    canvasData.data[++kakka] = b;
+    kakka = kakka+2;
 }
 
 function clear(canvasData,r,g,b,a) {
